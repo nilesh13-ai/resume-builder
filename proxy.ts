@@ -26,6 +26,9 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// Only the auth callback needs a server-side session. Running this on every
+// page would add a Supabase round-trip to each request for no benefit, since
+// pages are client-rendered and the browser client refreshes its own tokens.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/auth/:path*"],
 };

@@ -1,4 +1,6 @@
-export type TemplateId = "classic" | "modern" | "minimal" | "bold" | "compact";
+/** Template ids in gallery order. The registry in components/templates/index.ts must match. */
+export const TEMPLATE_IDS = ["classic", "modern", "minimal", "bold", "compact"] as const;
+export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 export interface ExperienceEntry {
   id: string;

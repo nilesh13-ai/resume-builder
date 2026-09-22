@@ -32,9 +32,15 @@ export function urlLabel(url: string): string {
     .replace(/\/+$/, "");
 }
 
-export function urlHref(url: string): string {
+/**
+ * Href for a user-entered URL, or undefined when it is not a plain http(s)
+ * link (e.g. "javascript:"), in which case callers render text instead.
+ */
+export function urlHref(url: string): string | undefined {
   const trimmed = url.trim();
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  if (!trimmed) return undefined;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return /^https?:\/\/[^\s/]+/i.test(withScheme) ? withScheme : undefined;
 }
 
 export interface ContactItem {

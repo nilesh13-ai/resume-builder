@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/context";
 import { errorMessage, useLocalResumeStore, useResumeStore } from "@/lib/store/context";
+import { DuplicateResumeError } from "@/lib/store/types";
 import type { Resume } from "@/lib/types";
 
 const dismissKey = (userId: string) => `resume-builder:import-dismissed:${userId}`;
 
 /**
  * Shown on the dashboard after login when this browser still holds local
- * resumes. Importing copies them into the account and removes the local copies.
+ * resumes. Importing copies them into the account (keeping their ids, so a
+ * retry can never create a duplicate) and then removes the local copies.
  */
 export function ImportLocalPrompt({ onImported }: { onImported: () => void }) {
   const { user } = useAuth();
@@ -29,7 +31,10 @@ export function ImportLocalPrompt({ onImported }: { onImported: () => void }) {
       // Storage unavailable; behave as if nothing is dismissed.
     }
     if (dismissed) return;
-    local.list().then((resumes) => !cancelled && setPending(resumes));
+    local
+      .list()
+      .then((resumes) => !cancelled && setPending(resumes))
+      .catch(() => !cancelled && setPending([]));
     return () => {
       cancelled = true;
     };
@@ -50,14 +55,23 @@ export function ImportLocalPrompt({ onImported }: { onImported: () => void }) {
     if (!pending) return;
     setState("importing");
     setError(null);
+    const remaining = [...pending];
     try {
       for (const resume of pending) {
-        await cloud.create({ title: resume.title, templateId: resume.templateId, data: resume.data });
+        try {
+          await cloud.create({ id: resume.id, title: resume.title, templateId: resume.templateId, data: resume.data });
+        } catch (e) {
+          // Already imported on a previous attempt: just clean up the local copy.
+          if (!(e instanceof DuplicateResumeError)) throw e;
+        }
         await local.remove(resume.id);
+        remaining.shift();
       }
       setPending([]);
+      setState("idle");
       onImported();
     } catch (e) {
+      setPending(remaining);
       setState("error");
       setError(errorMessage(e));
     }
@@ -76,7 +90,7 @@ export function ImportLocalPrompt({ onImported }: { onImported: () => void }) {
           </p>
           {error && (
             <p role="alert" className="mt-2 text-sm text-red-700">
-              Import failed: {error}
+              Import failed: {error}. You can try again; nothing will be duplicated.
             </p>
           )}
         </div>

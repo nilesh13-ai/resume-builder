@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ResumeData, TemplateId } from "@/lib/types";
+import { TEMPLATE_IDS, type ResumeData, type TemplateId } from "@/lib/types";
 import { BoldTemplate } from "./BoldTemplate";
 import { ClassicTemplate } from "./ClassicTemplate";
 import { CompactTemplate } from "./CompactTemplate";
@@ -13,7 +13,7 @@ export interface TemplateMeta {
   Component: ComponentType<{ data: ResumeData }>;
 }
 
-/** Adding a template: create its file, then add one entry here. */
+/** Adding a template: create its file, add its id to TEMPLATE_IDS in lib/types.ts, then add one entry here. */
 export const TEMPLATES: readonly TemplateMeta[] = [
   {
     id: "classic",
@@ -47,7 +47,10 @@ export const TEMPLATES: readonly TemplateMeta[] = [
   },
 ];
 
-export const TEMPLATE_IDS: readonly TemplateId[] = TEMPLATES.map((t) => t.id);
+// Compile-time check that every template id has a registry entry.
+const registered: Record<TemplateId, true> = Object.fromEntries(TEMPLATES.map((t) => [t.id, true])) as Record<TemplateId, true>;
+void registered;
+if (TEMPLATES.length !== TEMPLATE_IDS.length) throw new Error("TEMPLATES and TEMPLATE_IDS are out of sync");
 
 export function getTemplate(id: TemplateId): TemplateMeta {
   return TEMPLATES.find((t) => t.id === id) ?? TEMPLATES[0];

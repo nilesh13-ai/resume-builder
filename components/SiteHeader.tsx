@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useToast } from "@/components/Toaster";
 import { useAuth } from "@/lib/auth/context";
 
 const NAV = [
@@ -13,9 +14,14 @@ export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { configured, loading, user, signOut } = useAuth();
+  const toast = useToast();
 
   async function logout() {
-    await signOut();
+    const error = await signOut();
+    if (error) {
+      toast({ variant: "error", title: "Could not log out", description: error });
+      return;
+    }
     router.push("/");
   }
 
@@ -43,6 +49,7 @@ export function SiteHeader() {
               </Link>
             );
           })}
+          {configured && loading && <span className="ml-2 h-8 w-16" aria-hidden />}
           {configured && !loading && (
             user ? (
               <div className="ml-2 flex items-center gap-2 border-l border-zinc-200 pl-3">

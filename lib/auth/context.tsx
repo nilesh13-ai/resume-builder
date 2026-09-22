@@ -11,7 +11,8 @@ interface AuthState {
   /** True until the initial session has been read from storage. */
   loading: boolean;
   user: User | null;
-  signOut: () => Promise<void>;
+  /** Resolves to an error message when sign-out failed. */
+  signOut: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -32,9 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
+  const signOut = async (): Promise<string | null> => {
     const supabase = getBrowserSupabase();
-    if (supabase) await supabase.auth.signOut();
+    if (!supabase) return null;
+    const { error } = await supabase.auth.signOut();
+    return error ? error.message : null;
   };
 
   return (

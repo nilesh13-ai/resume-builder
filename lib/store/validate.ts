@@ -1,12 +1,12 @@
-import type {
-  EducationEntry,
-  ExperienceEntry,
-  ProjectEntry,
-  Resume,
-  ResumeData,
-  TemplateId,
+import {
+  TEMPLATE_IDS,
+  type EducationEntry,
+  type ExperienceEntry,
+  type ProjectEntry,
+  type Resume,
+  type ResumeData,
+  type TemplateId,
 } from "@/lib/types";
-import { TEMPLATE_IDS } from "@/components/templates";
 
 const isString = (v: unknown): v is string => typeof v === "string";
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isString);
@@ -41,7 +41,7 @@ function isProject(v: unknown): v is ProjectEntry {
   );
 }
 
-export function isResumeData(v: unknown): v is ResumeData {
+function isResumeData(v: unknown): v is ResumeData {
   return (
     isRecord(v) &&
     isString(v.fullName) &&

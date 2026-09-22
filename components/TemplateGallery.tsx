@@ -15,7 +15,7 @@ export function TemplateGallery() {
   const toast = useToast();
   const [busy, setBusy] = useState<TemplateId | null>(null);
 
-  async function use(templateId: TemplateId) {
+  async function startWithTemplate(templateId: TemplateId) {
     setBusy(templateId);
     try {
       const resume = await store.create({ templateId });
@@ -40,7 +40,7 @@ export function TemplateGallery() {
               <button
                 type="button"
                 data-action="use-template"
-                onClick={() => use(t.id)}
+                onClick={() => startWithTemplate(t.id)}
                 disabled={busy !== null}
                 className="mt-4 w-full rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
               >

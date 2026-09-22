@@ -7,7 +7,7 @@ import { TagInput } from "./TagInput";
 
 const SUMMARY_GUIDE = 400;
 
-export const inputClass =
+const inputClass =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 disabled:bg-zinc-100 disabled:text-zinc-400 md:text-sm";
 
 function Field({
@@ -27,6 +27,33 @@ function Field({
       {children}
       {hint && <span className="mt-1 block text-xs text-zinc-400">{hint}</span>}
     </label>
+  );
+}
+
+/**
+ * Like Field, but the label points at `id` instead of wrapping the control.
+ * Needed for controls that contain buttons (a wrapping <label> would activate
+ * the first button when the label text is clicked).
+ */
+function FieldGroup({
+  label,
+  id,
+  hint,
+  children,
+}: {
+  label: string;
+  id: string;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-xs font-medium text-zinc-600">
+        {label}
+      </label>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-zinc-400">{hint}</span>}
+    </div>
   );
 }
 
@@ -184,11 +211,12 @@ export function ResumeForm({
                   <input className={inputClass} value={entry.role} onChange={(e) => exp.update(entry.id, { role: e.target.value })} />
                 </Field>
                 <Field label="Start date">
-                  <MonthYearPicker value={entry.startDate} onChange={(startDate) => exp.update(entry.id, { startDate })} />
+                  <MonthYearPicker label="Start date" value={entry.startDate} onChange={(startDate) => exp.update(entry.id, { startDate })} />
                 </Field>
                 <div>
                   <Field label="End date">
                     <MonthYearPicker
+                      label="End date"
                       value={entry.current ? "" : entry.endDate}
                       disabled={entry.current}
                       onChange={(endDate) => exp.update(entry.id, { endDate })}
@@ -269,15 +297,15 @@ export function ResumeForm({
       </SectionCard>
 
       <SectionCard title="Skills">
-        <Field label="Skills" hint="Press Enter or type a comma to add a skill.">
-          <TagInput value={data.skills} onChange={(skills) => set("skills", skills)} placeholder="e.g. TypeScript" />
-        </Field>
+        <FieldGroup label="Skills" id="skills" hint="Press Enter or type a comma to add a skill.">
+          <TagInput id="skills" value={data.skills} onChange={(skills) => set("skills", skills)} placeholder="e.g. TypeScript" />
+        </FieldGroup>
       </SectionCard>
 
       <SectionCard title="Languages">
-        <Field label="Languages" hint="Include the level, e.g. “Spanish (Conversational)”.">
-          <TagInput value={data.languages} onChange={(languages) => set("languages", languages)} placeholder="e.g. English (Native)" />
-        </Field>
+        <FieldGroup label="Languages" id="languages" hint="Include the level, e.g. “Spanish (Conversational)”.">
+          <TagInput id="languages" value={data.languages} onChange={(languages) => set("languages", languages)} placeholder="e.g. English (Native)" />
+        </FieldGroup>
       </SectionCard>
     </form>
   );

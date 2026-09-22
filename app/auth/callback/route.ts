@@ -4,7 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 /** Only allow same-origin relative paths as the post-login destination. */
 function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/resumes";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/resumes";
   return value;
 }
 

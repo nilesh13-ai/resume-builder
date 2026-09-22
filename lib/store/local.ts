@@ -1,17 +1,17 @@
 import { newId } from "@/lib/format";
-import { sampleResume } from "@/lib/sample-data";
 import type { Resume } from "@/lib/types";
+import { buildCopy, buildNewResume } from "./shared";
 import type { CreateResumeInput, ResumePatch, ResumeStore } from "./types";
-import { ResumeNotFoundError } from "./types";
+import { DuplicateResumeError, ResumeNotFoundError } from "./types";
 import { normalizeResume, normalizeResumeData } from "./validate";
 
-export const LOCAL_RESUMES_KEY = "resume-builder:resumes:v1";
+const STORAGE_KEY = "resume-builder:resumes:v1";
 /** Single-resume format from the first version of the app; migrated on first read. */
 const LEGACY_KEY = "resume-builder:v1";
 
 function readAll(): Resume[] {
   try {
-    const raw = window.localStorage.getItem(LOCAL_RESUMES_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
       return Array.isArray(parsed)
@@ -52,7 +52,7 @@ function migrateLegacy(): Resume[] {
 
 function writeAll(resumes: Resume[]): void {
   // Throws when storage is unavailable or full; callers surface that as a save error.
-  window.localStorage.setItem(LOCAL_RESUMES_KEY, JSON.stringify(resumes));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resumes));
 }
 
 const byUpdatedDesc = (a: Resume, b: Resume) => b.updatedAt.localeCompare(a.updatedAt);
@@ -70,17 +70,10 @@ export function createLocalStore(): ResumeStore {
       return readAll().find((r) => r.id === id) ?? null;
     },
     async create(input: CreateResumeInput = {}) {
-      const now = new Date().toISOString();
-      const data = input.data ?? structuredClone(sampleResume);
-      const resume: Resume = {
-        id: newId(),
-        title: input.title ?? (data.fullName ? `${data.fullName}'s resume` : "Untitled resume"),
-        templateId: input.templateId ?? "classic",
-        data,
-        createdAt: now,
-        updatedAt: now,
-      };
-      writeAll([resume, ...readAll()]);
+      const all = readAll();
+      if (input.id && all.some((r) => r.id === input.id)) throw new DuplicateResumeError(input.id);
+      const resume = buildNewResume(input);
+      writeAll([resume, ...all]);
       notify();
       return resume;
     },
@@ -99,17 +92,11 @@ export function createLocalStore(): ResumeStore {
       notify();
     },
     async duplicate(id) {
-      const source = readAll().find((r) => r.id === id);
+      const all = readAll();
+      const source = all.find((r) => r.id === id);
       if (!source) throw new ResumeNotFoundError(id);
-      const now = new Date().toISOString();
-      const copy: Resume = {
-        ...structuredClone(source),
-        id: newId(),
-        title: `${source.title} (copy)`,
-        createdAt: now,
-        updatedAt: now,
-      };
-      writeAll([copy, ...readAll()]);
+      const copy = buildCopy(source);
+      writeAll([copy, ...all]);
       notify();
       return copy;
     },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ResumeForm } from "@/components/ResumeForm";
 import { ResumeSheet } from "@/components/ResumeSheet";
 import { ResumeTemplate } from "@/components/ResumeTemplate";
@@ -12,7 +12,7 @@ import { useResumeStore } from "@/lib/store/context";
 import type { Resume, ResumeData, TemplateId } from "@/lib/types";
 
 type Tab = "edit" | "preview";
-export type SaveState = "idle" | "saving" | "saved" | "error";
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -22,38 +22,77 @@ interface Draft {
   data: ResumeData;
 }
 
+interface SaveResult {
+  draft: Draft;
+  ok: boolean;
+  message?: string;
+}
+
 export function ResumeEditor({ resume }: { resume: Resume }) {
   const store = useResumeStore();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>({ title: resume.title, templateId: resume.templateId, data: resume.data });
   const [tab, setTab] = useState<Tab>("edit");
-  const [saved, setSaved] = useState<{ draft: Draft; ok: boolean; message?: string } | null>(null);
-  const isFirstRun = useRef(true);
+  const [lastSave, setLastSave] = useState<SaveResult | null>(null);
 
-  // Debounced autosave. The mount run is skipped: it only reflects the loaded resume.
+  // Refs let the save queue and the unmount flush see the latest values
+  // without re-creating callbacks on every keystroke.
+  const draftRef = useRef(draft);
+  const savedDraftRef = useRef<Draft>(draft); // last draft confirmed persisted
+  const inFlightRef = useRef(false);
   useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false;
-      return;
-    }
-    const timer = setTimeout(() => {
-      store
-        .update(resume.id, draft)
-        .then(() => setSaved({ draft, ok: true }))
-        .catch((e: unknown) => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  /**
+   * Persist the latest draft. Saves are serialized: if the draft changes while
+   * a save is in flight, one more save runs afterwards with the newest draft,
+   * so the store always ends up with the last edit and never an older one.
+   */
+  const save = useCallback(async (): Promise<void> => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      // Loop rather than recurse: keep saving while edits arrive during a save.
+      while (draftRef.current !== savedDraftRef.current) {
+        const snapshot = draftRef.current;
+        try {
+          await store.update(resume.id, snapshot);
+          savedDraftRef.current = snapshot;
+          setLastSave({ draft: snapshot, ok: true });
+        } catch (e) {
           const message = e instanceof Error ? e.message : "Save failed";
-          setSaved({ draft, ok: false, message });
+          setLastSave({ draft: snapshot, ok: false, message });
           toast({ variant: "error", title: "Could not save your changes", description: message });
-        });
-    }, SAVE_DEBOUNCE_MS);
+          break; // the next edit will trigger another attempt
+        }
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [store, resume.id, toast]);
+
+  // Debounced autosave while typing.
+  useEffect(() => {
+    if (draft === savedDraftRef.current) return;
+    const timer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [draft, resume.id, store, toast]);
+  }, [draft, save]);
+
+  // Flush unsaved edits when leaving the editor (navigation, tab close) so the
+  // last few hundred milliseconds of typing are never lost.
+  useEffect(() => {
+    const flush = () => void save();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [save]);
 
   const saveState: SaveState = (() => {
-    if (saved) {
-      if (saved.draft === draft) return saved.ok ? "saved" : "error";
-      return "saving";
-    }
+    if (lastSave && lastSave.draft === draft) return lastSave.ok ? "saved" : "error";
+    if (lastSave) return "saving";
     const untouched =
       draft.title === resume.title && draft.templateId === resume.templateId && draft.data === resume.data;
     return untouched ? "idle" : "saving";
@@ -62,11 +101,16 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
   function handleDownload() {
     // Browsers use document.title as the default file name in the print-to-PDF dialog.
     const previousTitle = document.title;
+    let restored = false;
     const restore = () => {
+      if (restored) return;
+      restored = true;
       document.title = previousTitle;
       window.removeEventListener("afterprint", restore);
     };
     window.addEventListener("afterprint", restore);
+    // Safety net for browsers that never fire afterprint (e.g. dialog dismissed early).
+    setTimeout(restore, 60_000);
     document.title = resumeFileName(draft.data.fullName);
     window.print();
   }
@@ -90,7 +134,7 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-base font-semibold text-zinc-900 hover:border-zinc-300 focus:border-sky-500 focus:outline-none sm:w-64"
               />
-              <SaveIndicator state={saveState} message={saved?.message} />
+              <SaveIndicator state={saveState} message={lastSave?.message} />
             </div>
             <button
               type="button"
@@ -104,11 +148,13 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
         </div>
         {/* Mobile-only Edit/Preview tabs; the only sticky element on small screens. */}
         <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur md:hidden">
-          <div className="mx-auto flex max-w-7xl gap-1 px-4 py-2">
+          <div className="mx-auto flex max-w-7xl gap-1 px-4 py-2" role="tablist" aria-label="Editor view">
             {(["edit", "preview"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
+                role="tab"
+                aria-selected={tab === id}
                 onClick={() => setTab(id)}
                 className={`flex-1 rounded-md py-2 text-sm font-medium capitalize ${
                   tab === id ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
@@ -140,7 +186,7 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
   );
 }
 
-export function SaveIndicator({ state, message }: { state: SaveState; message?: string }) {
+function SaveIndicator({ state, message }: { state: SaveState; message?: string }) {
   if (state === "idle") return null;
   const styles: Record<Exclude<SaveState, "idle">, { text: string; className: string }> = {
     saving: { text: "Saving…", className: "text-zinc-400" },

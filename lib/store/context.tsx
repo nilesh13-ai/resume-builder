@@ -77,9 +77,10 @@ export function useResumeList(): AsyncState<Resume[]> & { refresh: () => void } 
 }
 
 /** One resume by id. `value` is null while loading or when it does not exist. */
-export function useResume(id: string): AsyncState<Resume | null> {
+export function useResume(id: string): AsyncState<Resume | null> & { refresh: () => void } {
   const { store, ready } = useStoreContext();
   const [state, setState] = useState<AsyncState<Resume | null>>({ value: null, loading: true, error: null });
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
@@ -91,9 +92,9 @@ export function useResume(id: string): AsyncState<Resume | null> {
     return () => {
       cancelled = true;
     };
-  }, [store, ready, id]);
+  }, [store, ready, id, tick]);
 
-  return { ...state, loading: state.loading || !ready };
+  return { ...state, loading: state.loading || !ready, refresh: () => setTick((t) => t + 1) };
 }
 
 export function errorMessage(e: unknown): string {

@@ -5,7 +5,7 @@ import { MONTHS } from "@/lib/format";
 
 const CURRENT_YEAR = new Date().getFullYear();
 /** Newest first, so recent years are at the top of the list. */
-export const YEARS: string[] = Array.from(
+const YEARS: string[] = Array.from(
   { length: CURRENT_YEAR + 2 - 1965 + 1 },
   (_, i) => String(CURRENT_YEAR + 2 - i),
 );
@@ -75,10 +75,13 @@ export function MonthYearPicker({
   value,
   onChange,
   disabled,
+  label,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Field name used to build the accessible names, e.g. "Start date" -> "Start date month". */
+  label: string;
 }) {
   const [parts, setParts] = useState(() => split(value));
   const [prevValue, setPrevValue] = useState(value);
@@ -101,7 +104,7 @@ export function MonthYearPicker({
           className={selectClass}
           value={shown.month}
           disabled={disabled}
-          aria-label="Month"
+          aria-label={`${label} month`}
           onChange={(e) => update({ ...shown, month: e.target.value })}
         >
           <option value="">Month</option>
@@ -119,6 +122,7 @@ export function MonthYearPicker({
       <YearSelect
         value={shown.year}
         disabled={disabled}
+        label={`${label} year`}
         onChange={(year) => update({ ...shown, year })}
       />
     </div>

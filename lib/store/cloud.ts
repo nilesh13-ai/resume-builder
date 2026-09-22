@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sampleResume } from "@/lib/sample-data";
 import type { Resume } from "@/lib/types";
+import { buildCopy, buildNewResume } from "./shared";
 import type { CreateResumeInput, ResumePatch, ResumeStore } from "./types";
-import { ResumeNotFoundError } from "./types";
+import { DuplicateResumeError, ResumeNotFoundError } from "./types";
 import { normalizeResume } from "./validate";
 
 /** Shape of a row in the `resumes` table (see supabase/migrations/001_init.sql). */
@@ -17,9 +17,10 @@ interface ResumeRow {
 }
 
 const COLUMNS = "id, user_id, title, template_id, data, created_at, updated_at";
+const PG_UNIQUE_VIOLATION = "23505";
 
-function fromRow(row: ResumeRow): Resume | null {
-  return normalizeResume({
+function fromRow(row: ResumeRow): Resume {
+  const resume = normalizeResume({
     id: row.id,
     title: row.title,
     templateId: row.template_id,
@@ -27,6 +28,8 @@ function fromRow(row: ResumeRow): Resume | null {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
+  if (!resume) throw new Error("The server returned a resume in an unexpected format.");
+  return resume;
 }
 
 function toRowPatch(patch: ResumePatch): Partial<Pick<ResumeRow, "title" | "template_id" | "data">> {
@@ -38,24 +41,32 @@ function toRowPatch(patch: ResumePatch): Partial<Pick<ResumeRow, "title" | "temp
 }
 
 /**
- * Supabase-backed store. Row-level security guarantees the user only ever
- * sees their own rows; the explicit user_id filter is belt and braces.
+ * Supabase-backed store. Row-level security is the authorization layer: the
+ * `user_id` column defaults to `auth.uid()` server-side and the insert policy
+ * rejects any other value, so nothing here is trusted by the database.
  */
 export function createCloudStore(supabase: SupabaseClient, userId: string): ResumeStore {
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((l) => l());
   const table = () => supabase.from("resumes");
 
-  async function insert(input: Required<Pick<CreateResumeInput, "title" | "templateId" | "data">>): Promise<Resume> {
+  async function get(id: string): Promise<Resume | null> {
+    const { data, error } = await table().select(COLUMNS).eq("id", id).maybeSingle<ResumeRow>();
+    if (error) throw new Error(error.message);
+    return data ? fromRow(data) : null;
+  }
+
+  async function insert(resume: Resume): Promise<Resume> {
     const { data, error } = await table()
-      .insert({ user_id: userId, title: input.title, template_id: input.templateId, data: input.data })
+      .insert({ id: resume.id, user_id: userId, title: resume.title, template_id: resume.templateId, data: resume.data })
       .select(COLUMNS)
       .single<ResumeRow>();
-    if (error) throw new Error(error.message);
-    const resume = fromRow(data);
-    if (!resume) throw new Error("Server returned an invalid resume");
+    if (error) {
+      if (error.code === PG_UNIQUE_VIOLATION) throw new DuplicateResumeError(resume.id);
+      throw new Error(error.message);
+    }
     notify();
-    return resume;
+    return fromRow(data);
   }
 
   return {
@@ -67,20 +78,11 @@ export function createCloudStore(supabase: SupabaseClient, userId: string): Resu
         .order("updated_at", { ascending: false })
         .returns<ResumeRow[]>();
       if (error) throw new Error(error.message);
-      return data.map(fromRow).filter((r): r is Resume => r !== null);
+      return data.map(fromRow);
     },
-    async get(id) {
-      const { data, error } = await table().select(COLUMNS).eq("id", id).maybeSingle<ResumeRow>();
-      if (error) throw new Error(error.message);
-      return data ? fromRow(data) : null;
-    },
+    get,
     async create(input: CreateResumeInput = {}) {
-      const data = input.data ?? structuredClone(sampleResume);
-      return insert({
-        title: input.title ?? (data.fullName ? `${data.fullName}'s resume` : "Untitled resume"),
-        templateId: input.templateId ?? "classic",
-        data,
-      });
+      return insert(buildNewResume(input));
     },
     async update(id, patch) {
       const { data, error } = await table()
@@ -90,10 +92,8 @@ export function createCloudStore(supabase: SupabaseClient, userId: string): Resu
         .maybeSingle<ResumeRow>();
       if (error) throw new Error(error.message);
       if (!data) throw new ResumeNotFoundError(id);
-      const resume = fromRow(data);
-      if (!resume) throw new Error("Server returned an invalid resume");
       notify();
-      return resume;
+      return fromRow(data);
     },
     async remove(id) {
       const { error } = await table().delete().eq("id", id);
@@ -101,13 +101,9 @@ export function createCloudStore(supabase: SupabaseClient, userId: string): Resu
       notify();
     },
     async duplicate(id) {
-      const source = await this.get(id);
+      const source = await get(id);
       if (!source) throw new ResumeNotFoundError(id);
-      return insert({
-        title: `${source.title} (copy)`,
-        templateId: source.templateId,
-        data: structuredClone(source.data),
-      });
+      return insert(buildCopy(source));
     },
     subscribe(listener) {
       listeners.add(listener);

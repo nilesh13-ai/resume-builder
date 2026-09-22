@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { ResumeEditor } from "@/components/ResumeEditor";
-import { useResume } from "@/lib/store/context";
+import { useResume, useResumeStore } from "@/lib/store/context";
 
 export function EditorLoader({ resumeId }: { resumeId: string }) {
-  const { value: resume, loading, error } = useResume(resumeId);
+  const store = useResumeStore();
+  const { value: resume, loading, error, refresh } = useResume(resumeId);
 
   if (loading) {
     return (
@@ -26,14 +27,26 @@ export function EditorLoader({ resumeId }: { resumeId: string }) {
           {error ? "Could not load this resume" : "Resume not found"}
         </h1>
         <p className="mt-2 text-sm text-zinc-600">
-          {error ?? "It may have been deleted, or it was created on another device or browser."}
+          {error ??
+            (store.kind === "cloud"
+              ? "It may have been deleted, or it was saved in this browser before you logged in. Log out to see browser-only resumes."
+              : "It may have been deleted, or it was created on another device or browser.")}
         </p>
-        <Link href="/resumes" className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white">
-          Go to my resumes
-        </Link>
+        <div className="mt-6 flex justify-center gap-3">
+          {error && (
+            <button type="button" onClick={refresh} className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
+              Try again
+            </button>
+          )}
+          <Link href="/resumes" className="inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white">
+            Go to my resumes
+          </Link>
+        </div>
       </div>
     );
   }
 
-  return <ResumeEditor key={resume.id} resume={resume} />;
+  // Keyed by store too: logging in or out swaps the backing store, and the
+  // editor must remount rather than save a cloud id into local storage.
+  return <ResumeEditor key={`${store.kind}:${resume.id}`} resume={resume} />;
 }

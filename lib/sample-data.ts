@@ -87,21 +87,3 @@ export const sampleResume: ResumeData = {
   ],
   languages: ["English (Native)", "Hindi (Fluent)", "Spanish (Conversational)"],
 };
-
-export function emptyResume(): ResumeData {
-  return {
-    fullName: "",
-    jobTitle: "",
-    email: "",
-    phone: "",
-    location: "",
-    linkedin: "",
-    website: "",
-    summary: "",
-    experience: [],
-    education: [],
-    projects: [],
-    skills: [],
-    languages: [],
-  };
-}

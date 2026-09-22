@@ -1,7 +1,43 @@
 # Review notes
 
-Things I would flag or call out in a PR review of this codebase. Updated as
-phases land; the security section is filled in after the Supabase verification.
+What a senior-engineer review of this codebase found, what was fixed, and what
+was deliberately left. Kept current as phases land.
+
+## Fixed in the review pass
+
+- **Autosave could lose the last edits.** The debounce timer was cleared on
+  unmount, so typing and then immediately navigating away dropped up to 600ms
+  of edits. The editor now flushes unsaved changes on unmount and on `pagehide`.
+- **Autosave could apply saves out of order.** Two in-flight updates could
+  resolve in either order, leaving an older draft persisted and the indicator
+  stuck on "Saving". Saves are now serialized: one in flight at a time, and a
+  newer draft triggers exactly one follow-up save.
+- **Logging out with the editor open** swapped the backing store under the
+  editor, which then tried to save a cloud id into localStorage. The editor is
+  now keyed by store kind and remounts; the not-found page explains why.
+- **Clicking the "Skills"/"Languages" label removed a tag.** A wrapping
+  `<label>` activates its first labelable descendant, which was a tag's remove
+  button. Those fields use `htmlFor` now.
+- **Layout shift on the landing page.** Thumbnails rendered at full size for one
+  frame before being scaled. The wrapper reserves the A4 aspect ratio and the
+  sheet stays invisible until measured.
+- **Import could duplicate resumes.** If the local delete failed after the
+  cloud insert, a retry inserted again. Imports now keep the local id, and a
+  unique-violation is treated as "already imported".
+- **Any URL scheme became a link.** `javascript:` and similar now render as
+  plain text; only `http(s)` links get an `href`.
+- **Proxy ran a Supabase round-trip on every request**, including static
+  pages that never read the session. Its matcher is now `/auth/*` only.
+- **`lib` depended on `components`** (template ids). `TEMPLATE_IDS` moved to
+  `lib/types.ts`; the registry checks it stays in sync.
+- **Dead code**: unused `ClearAllButton`, `emptyResume`, and several exports
+  that were only used in their own file.
+- Smaller: `ResumeTemplate` is memoized so the preview's own resize
+  measurement doesn't re-render the template; `useResume` has a retry;
+  duplicated "new resume" defaults live in one helper; the cloud store no
+  longer relies on `this`; `document.title` is restored even if `afterprint`
+  never fires; the tab bar has proper `tab`/`tablist` roles; the header
+  reserves space for the Login button while the session loads.
 
 ## Security review
 
@@ -9,8 +45,9 @@ phases land; the security section is filled in after the Supabase verification.
 - The browser bundle only ever receives `NEXT_PUBLIC_SUPABASE_URL` and
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`lib/supabase/env.ts`). There is no
   service-role key in the repo, in `.env.example`, or in any server code.
-- `.env*` is gitignored. `.env.example` documents the two public values only.
-- The optional `TEST_USER*` variables used for the RLS check have no
+- `.env*` is gitignored. A scan of the full git history found no keys and no
+  env file ever committed.
+- The optional `TEST_USER*` variables for the RLS check have no
   `NEXT_PUBLIC_` prefix, so Next.js never inlines them into client code.
 
 ### Row-level security (`supabase/migrations/001_init.sql`)
@@ -20,53 +57,62 @@ phases land; the security section is filled in after the Supabase verification.
   update, or delete another user's rows. `insert` has a `with check`, so a user
   cannot insert rows attributed to someone else.
 - `user_id` defaults to `auth.uid()`. The client also sends it explicitly
-  (`lib/store/cloud.ts`), which is redundant but harmless; the `with check`
-  policy is what actually enforces it.
+  (`lib/store/cloud.ts`); the database does not trust that value, the
+  `with check` policy is what enforces it.
 - The `update` policy has both `using` and `with check`, so a user cannot move
   a row to another `user_id`.
-- The `updated_at` trigger runs as the table owner; it only touches
-  `new.updated_at`, so it cannot be abused to change other columns.
-- Verification status: see "RLS verification" below.
+- The `updated_at` trigger only touches `new.updated_at`.
+- Verification status: pending the table being created in the project (the
+  REST API still reports it missing) and two test accounts. See the end of
+  this file for the exact check that will run.
 
 ### Auth flow
-- `app/auth/callback/route.ts` only redirects to same-origin relative paths
-  (`safeNext` rejects absolute URLs and protocol-relative `//` paths), so the
-  `next` parameter cannot be used for open redirects.
-- The proxy (`proxy.ts`) refreshes session cookies but does not gate any route.
+- `app/auth/callback/route.ts` only redirects to same-origin relative paths;
+  `safeNext` rejects absolute URLs, protocol-relative `//` paths, and
+  backslashes, so the `next` parameter cannot be used for open redirects.
+- The proxy refreshes session cookies for `/auth/*` only and gates nothing.
   There are no server-rendered private pages, so nothing depends on it for
-  access control; RLS is the only authorization layer, which is the right
-  place for it.
-- Sessions live in cookies managed by `@supabase/ssr`. Because there is no
-  server-side data fetching yet, the cookie is mostly there so the callback
-  route can complete the PKCE exchange.
+  access control; RLS is the only authorization layer.
+- Resume content is rendered as text, never as HTML, so there is no XSS path
+  from stored data. Links are limited to `http(s)` and `mailto:` built from
+  the email field.
 
-### Things I would still flag
-- **Data column is untyped JSON.** Any authenticated user can write arbitrary
-  JSON into their own `data` column. That is fine for authorization but the
-  client re-validates on read (`lib/store/validate.ts`), and a malformed row
-  is silently dropped from the list rather than surfaced. Consider a Postgres
-  `check` constraint with `jsonb_typeof(data) = 'object'` and a size cap.
-- **No rate limiting on magic links** beyond Supabase's defaults. Fine for a
-  hobby deployment; production should tighten the auth rate limits in the
-  Supabase dashboard.
-- **Titles and resume content are rendered as text**, never as HTML, so there
-  is no XSS path from stored data. Links in templates use `href` from user
-  input after prefixing `https://` when a scheme is missing; a `javascript:`
-  URL would currently be rendered as `https://javascript:...`, which is inert,
-  but an explicit allowlist of `http`/`https`/`mailto` would be cleaner.
-- **Import prompt removes local copies after upload.** If the tab closes
-  mid-import, some resumes may already be in the account and some still local;
-  re-running the import creates no duplicates for the already-removed ones,
-  but the user sees the prompt again for the rest. Acceptable, worth knowing.
+## Left as-is, with recommendations
+
+- **Cloud flush on tab close is best-effort.** `pagehide` triggers a save, but
+  a Supabase request started during unload can be cancelled by the browser.
+  Local saves complete synchronously. Recommendation: if this matters, send
+  the final save through a `fetch` with `keepalive: true` to a small route
+  handler, or shorten the debounce further.
+- **No `beforeunload` warning while a save is pending.** Deliberate: the
+  prompt is intrusive and the flush above covers the common case.
+- **`data` column is untyped JSON.** Authorization is fine, but the client
+  re-validates on read and silently drops a malformed row from the list.
+  Recommendation: add a `check (jsonb_typeof(data) = 'object')` constraint
+  and a size cap (e.g. `octet_length(data::text) < 200000`).
+- **Magic-link rate limiting** relies on Supabase defaults. Tighten in the
+  dashboard before a public launch.
+- **Supabase JS is in the initial bundle on every page** (~40 KB gzipped of a
+  ~250 KB total). Acceptable now; lazy-load the client from `AuthProvider`
+  if the landing page's bundle becomes a concern.
+- **The form re-renders fully on each keystroke.** Fine at resume sizes
+  (tens of fields). If it grows, memoize entry sub-forms by id.
+- **Thumbnails are live DOM, not images.** Each dashboard card renders a full
+  template scaled with a transform. Fine for dozens of resumes; rasterize
+  server-side if the dashboard needs to show hundreds.
+- **Safari printing** was not driven automatically. The print CSS uses only
+  `@page`, `break-inside`, and `break-after`. Safari ignores `@page { size }`
+  and uses the paper size from its dialog, so users there should pick A4 in
+  the dialog; margins and page breaks behave the same.
+- **Import prompt dismissal is per user, per browser** (`localStorage` flag).
+  If a user dismisses and later wants to import, they must delete the flag or
+  the local resumes stay browser-only. Recommendation: expose "Import from
+  this browser" as a dashboard action instead of a one-time banner.
+- **`next dev` regenerates the managed block in `AGENTS.md`**; don't edit it.
 
 ## Engineering notes
-- `next dev` regenerates the managed block in `AGENTS.md`; don't edit it.
 - The React Compiler lint rules forbid `setState` directly inside an effect
   body and reading refs during render. All async state uses promise callbacks;
-  derived state replaces the ref-based flags used in earlier versions.
-- PDF output relies on the browser print dialog, so it was tested in headless
-  Chrome only. Safari was not driven automatically; the print CSS uses only
-  `@page`, `break-inside`, and `break-after`, which Safari supports.
-- Thumbnails render the full template DOM scaled with a CSS transform. With
-  many resumes on the dashboard this is heavier than a rasterized thumbnail;
-  fine up to a few dozen.
+  the editor syncs refs inside effects rather than in render.
+- PDF output relies on the browser print dialog and was tested in headless
+  Chrome for all five templates, single and multi-page.
