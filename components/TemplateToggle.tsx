@@ -5,6 +5,7 @@ import type { TemplateId } from "@/lib/types";
 const OPTIONS: { id: TemplateId; label: string }[] = [
   { id: "classic", label: "Classic" },
   { id: "modern", label: "Modern" },
+  { id: "minimal", label: "Minimal" },
 ];
 
 export function TemplateToggle({

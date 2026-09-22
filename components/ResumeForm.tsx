@@ -2,6 +2,9 @@
 
 import type { EducationEntry, ExperienceEntry, ResumeData } from "@/lib/types";
 import { newId } from "@/lib/format";
+import { MonthYearPicker, YearSelect } from "./MonthYearPicker";
+
+const SUMMARY_GUIDE = 400;
 
 const inputClass =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 md:text-sm shadow-sm placeholder:text-zinc-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 disabled:bg-zinc-100 disabled:text-zinc-400";
@@ -13,7 +16,7 @@ function Field({
   className,
 }: {
   label: string;
-  hint?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -128,7 +131,11 @@ export function ResumeForm({
           <Field label="LinkedIn URL">
             <input className={inputClass} type="url" value={data.linkedin} onChange={(e) => set("linkedin", e.target.value)} />
           </Field>
-          <Field label="Professional summary" className="sm:col-span-2">
+          <Field
+            label="Professional summary"
+            className="sm:col-span-2"
+            hint={<SummaryCounter length={data.summary.length} />}
+          >
             <textarea className={`${inputClass} min-h-24 resize-y`} rows={4} value={data.summary} onChange={(e) => set("summary", e.target.value)} />
           </Field>
         </div>
@@ -156,16 +163,14 @@ export function ResumeForm({
                   <input className={inputClass} value={entry.role} onChange={(e) => updateExperience(entry.id, { role: e.target.value })} />
                 </Field>
                 <Field label="Start date">
-                  <input className={inputClass} type="month" value={entry.startDate} onChange={(e) => updateExperience(entry.id, { startDate: e.target.value })} />
+                  <MonthYearPicker value={entry.startDate} onChange={(startDate) => updateExperience(entry.id, { startDate })} />
                 </Field>
                 <div>
                   <Field label="End date">
-                    <input
-                      className={inputClass}
-                      type="month"
+                    <MonthYearPicker
                       value={entry.current ? "" : entry.endDate}
                       disabled={entry.current}
-                      onChange={(e) => updateExperience(entry.id, { endDate: e.target.value })}
+                      onChange={(endDate) => updateExperience(entry.id, { endDate })}
                     />
                   </Field>
                   <label className="mt-1 flex items-center gap-2 py-1.5 text-xs text-zinc-600">
@@ -214,7 +219,7 @@ export function ResumeForm({
                   <input className={inputClass} value={entry.degree} onChange={(e) => updateEducation(entry.id, { degree: e.target.value })} />
                 </Field>
                 <Field label="Year">
-                  <input className={inputClass} inputMode="numeric" value={entry.year} onChange={(e) => updateEducation(entry.id, { year: e.target.value })} />
+                  <YearSelect value={entry.year} onChange={(year) => updateEducation(entry.id, { year })} />
                 </Field>
               </div>
             </div>
@@ -228,5 +233,17 @@ export function ResumeForm({
         </Field>
       </SectionCard>
     </form>
+  );
+}
+
+function SummaryCounter({ length }: { length: number }) {
+  const over = length > SUMMARY_GUIDE;
+  return (
+    <span className={`flex justify-between gap-2 ${over ? "text-amber-600" : "text-zinc-400"}`}>
+      <span>{over ? "Recruiters skim: try to stay under the guide." : "Two to four sentences works best."}</span>
+      <span className="tabular-nums" aria-live="polite">
+        {length} / {SUMMARY_GUIDE}
+      </span>
+    </span>
   );
 }

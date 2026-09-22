@@ -35,6 +35,10 @@ function isEducation(v: unknown): v is EducationEntry {
   );
 }
 
+const TEMPLATE_IDS: readonly TemplateId[] = ["classic", "modern", "minimal"];
+const isTemplateId = (v: unknown): v is TemplateId =>
+  isString(v) && (TEMPLATE_IDS as readonly string[]).includes(v);
+
 function isResumeData(v: unknown): v is ResumeData {
   return (
     isRecord(v) &&
@@ -62,7 +66,7 @@ export function loadStoredState(): StoredState | null {
     if (!isRecord(parsed) || !isResumeData(parsed.data)) return null;
     return {
       data: parsed.data,
-      template: parsed.template === "modern" ? "modern" : "classic",
+      template: isTemplateId(parsed.template) ? parsed.template : "classic",
     };
   } catch {
     return null;

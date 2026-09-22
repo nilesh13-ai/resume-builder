@@ -1,4 +1,4 @@
-export type TemplateId = "classic" | "modern";
+export type TemplateId = "classic" | "modern" | "minimal";
 
 export interface ExperienceEntry {
   id: string;
