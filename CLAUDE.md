@@ -11,6 +11,8 @@ A resume builder: landing page with a template gallery (`/`), editor with live p
 ## Architecture
 
 - **Templates** live in `components/templates/`, one file each, registered in `components/templates/index.ts` (`TEMPLATES`). `components/ResumeTemplate.tsx` renders `(data, templateId)` and is the only switch point; previews, thumbnails, and print output all go through it. Adding a template = one file + one registry entry.
+- **Sections**: order and visibility live in `data.sections` and are normalized by `lib/sections.ts`. Templates render `visibleSections(data)` in order; two-column templates apply the order within each column.
+- **Sharing**: `isPublic` maps to the `is_public` column; `/r/[id]` reads through `lib/store/public.ts` with no session, relying on the public-select RLS policy. Local resumes are never public.
 - **Persistence** goes through the `ResumeStore` interface in `lib/store/types.ts`. `lib/store/local.ts` is the localStorage implementation (key `resume-builder:resumes:v1`, migrates the older single-resume key). `lib/store/context.tsx` provides the store plus `useResumeList` / `useResume` hooks. Stored data is validated and back-filled by `lib/store/validate.ts`.
 - **Print/PDF** uses the browser print dialog. `app/globals.css` sets `@page` to A4 with 14mm margins; the on-screen sheet (`components/ResumeSheet.tsx`) uses the same 14mm as padding so preview and PDF match. Entries use `break-inside-avoid`; headings use `break-after-avoid`. The editor sets `document.title` to `<Name>_Resume` before printing so browsers name the file.
 - **Lint constraints**: the React Compiler rules are on. No `setState` directly in an effect body (use promise callbacks or derive state), and no reading refs during render.

@@ -12,6 +12,7 @@ export function buildNewResume(input: CreateResumeInput = {}): Resume {
     title: input.title ?? (data.fullName ? `${data.fullName}'s resume` : "Untitled resume"),
     templateId: input.templateId ?? "classic",
     data,
+    isPublic: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -24,6 +25,7 @@ export function buildCopy(source: Resume): Resume {
     ...structuredClone(source),
     id: newId(),
     title: `${source.title} (copy)`,
+    isPublic: false,
     createdAt: now,
     updatedAt: now,
   };

@@ -192,6 +192,11 @@ function ResumeCard({ resume }: { resume: Resume }) {
         )}
         <p className="mt-1 text-xs text-zinc-500">
           {getTemplate(resume.templateId).name} &middot; edited {formatRelativeTime(resume.updatedAt)}
+          {resume.isPublic && (
+            <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+              Public
+            </span>
+          )}
         </p>
 
         {mode === "confirm-delete" ? (

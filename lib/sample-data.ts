@@ -1,3 +1,4 @@
+import { defaultSections } from "./sections";
 import type { ResumeData } from "./types";
 
 export const sampleResume: ResumeData = {
@@ -86,4 +87,5 @@ export const sampleResume: ResumeData = {
     "AWS", "Docker", "Kubernetes", "GraphQL", "CI/CD", "System Design",
   ],
   languages: ["English (Native)", "Hindi (Fluent)", "Spanish (Conversational)"],
+  sections: defaultSections(),
 };

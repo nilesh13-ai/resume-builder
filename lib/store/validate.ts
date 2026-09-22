@@ -1,3 +1,4 @@
+import { normalizeSections } from "@/lib/sections";
 import {
   TEMPLATE_IDS,
   type EducationEntry,
@@ -59,7 +60,8 @@ function isResumeData(v: unknown): v is ResumeData {
     Array.isArray(v.projects) &&
     v.projects.every(isProject) &&
     isStringArray(v.skills) &&
-    isStringArray(v.languages)
+    isStringArray(v.languages) &&
+    Array.isArray(v.sections)
   );
 }
 
@@ -79,6 +81,7 @@ export function normalizeResumeData(v: unknown): ResumeData | null {
         ? v.skills.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
     languages: isStringArray(v.languages) ? v.languages : [],
+    sections: normalizeSections(v.sections),
   };
   return isResumeData(candidate) ? candidate : null;
 }
@@ -93,6 +96,7 @@ export function normalizeResume(v: unknown): Resume | null {
     title: isString(v.title) && v.title.trim() ? v.title : "Untitled resume",
     templateId: isTemplateId(v.templateId) ? v.templateId : "classic",
     data,
+    isPublic: v.isPublic === true,
     createdAt: isString(v.createdAt) ? v.createdAt : now,
     updatedAt: isString(v.updatedAt) ? v.updatedAt : now,
   };

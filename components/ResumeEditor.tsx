@@ -5,9 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ResumeForm } from "@/components/ResumeForm";
 import { ResumeSheet } from "@/components/ResumeSheet";
 import { ResumeTemplate } from "@/components/ResumeTemplate";
+import { SharePanel } from "@/components/SharePanel";
 import { TemplateSwitcher } from "@/components/TemplateSwitcher";
 import { useToast } from "@/components/Toaster";
-import { resumeFileName } from "@/lib/format";
+import { printResume } from "@/lib/print";
 import { useResumeStore } from "@/lib/store/context";
 import type { Resume, ResumeData, TemplateId } from "@/lib/types";
 
@@ -98,23 +99,6 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
     return untouched ? "idle" : "saving";
   })();
 
-  function handleDownload() {
-    // Browsers use document.title as the default file name in the print-to-PDF dialog.
-    const previousTitle = document.title;
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      document.title = previousTitle;
-      window.removeEventListener("afterprint", restore);
-    };
-    window.addEventListener("afterprint", restore);
-    // Safety net for browsers that never fire afterprint (e.g. dialog dismissed early).
-    setTimeout(restore, 60_000);
-    document.title = resumeFileName(draft.data.fullName);
-    window.print();
-  }
-
   return (
     <>
       <div className="flex min-h-[calc(100vh-3.5rem)] flex-col bg-zinc-100 print:hidden">
@@ -138,12 +122,13 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
             </div>
             <button
               type="button"
-              onClick={handleDownload}
+              onClick={() => printResume(draft.data.fullName)}
               className="rounded-md bg-sky-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-700 md:order-last"
             >
               Download PDF
             </button>
             <TemplateSwitcher value={draft.templateId} onChange={(templateId) => setDraft({ ...draft, templateId })} />
+            <SharePanel resume={resume} />
           </div>
         </div>
         {/* Mobile-only Edit/Preview tabs; the only sticky element on small screens. */}

@@ -3,6 +3,7 @@
 import type { EducationEntry, ExperienceEntry, ProjectEntry, ResumeData } from "@/lib/types";
 import { moveItem, newId } from "@/lib/format";
 import { MonthYearPicker, YearSelect } from "./MonthYearPicker";
+import { SectionOrderEditor } from "./SectionOrderEditor";
 import { TagInput } from "./TagInput";
 
 const SUMMARY_GUIDE = 400;
@@ -156,6 +157,11 @@ export function ResumeForm({
 
   return (
     <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+      <SectionCard title="Sections">
+        <p className="mb-3 text-xs text-zinc-500">Drag to reorder. Untick a section to hide it from the resume.</p>
+        <SectionOrderEditor sections={data.sections} onChange={(sections) => set("sections", sections)} />
+      </SectionCard>
+
       <SectionCard title="Personal details">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Full name">

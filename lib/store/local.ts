@@ -81,7 +81,8 @@ export function createLocalStore(): ResumeStore {
       const all = readAll();
       const index = all.findIndex((r) => r.id === id);
       if (index === -1) throw new ResumeNotFoundError(id);
-      const updated: Resume = { ...all[index], ...patch, updatedAt: new Date().toISOString() };
+      // Sharing is cloud-only; local resumes are never public.
+      const updated: Resume = { ...all[index], ...patch, isPublic: false, updatedAt: new Date().toISOString() };
       all[index] = updated;
       writeAll(all);
       notify();

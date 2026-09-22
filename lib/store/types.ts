@@ -8,7 +8,7 @@ export interface CreateResumeInput {
   data?: ResumeData;
 }
 
-export type ResumePatch = Partial<Pick<Resume, "title" | "templateId" | "data">>;
+export type ResumePatch = Partial<Pick<Resume, "title" | "templateId" | "data" | "isPublic">>;
 
 /**
  * Persistence for resumes. There is a localStorage implementation and a

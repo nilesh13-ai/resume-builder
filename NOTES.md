@@ -110,6 +110,24 @@ was deliberately left. Kept current as phases land.
   this browser" as a dashboard action instead of a one-time banner.
 - **`next dev` regenerates the managed block in `AGENTS.md`**; don't edit it.
 
+## Sharing and sections (feature notes)
+
+- **Public links** read through the `resumes_select_public` policy with the
+  publishable key and no session (`lib/store/public.ts`). Anonymous access is
+  further limited to the columns the page needs; `user_id` is not granted to
+  `anon` (see `002_public_sharing.sql`), so a public page never reveals the
+  owner's id. Public pages are `noindex`.
+- **Local resumes cannot be public.** The local store forces `isPublic` to
+  false on every write and the share panel shows a login prompt instead.
+- **Section order** is stored as `data.sections` (`lib/sections.ts`). It is
+  normalized on every read, so older resumes without it, or rows with unknown
+  ids, always come back complete. Two-column templates (Modern, Compact) keep
+  a fixed column assignment and apply the order within each column; hidden
+  and empty sections are skipped everywhere.
+- **Drag and drop** uses native HTML drag events plus up/down buttons for
+  keyboard and touch users; there is no pointer-based fallback on touch
+  devices, where the buttons are the intended path.
+
 ## Engineering notes
 - The React Compiler lint rules forbid `setState` directly inside an effect
   body and reading refs during render. All async state uses promise callbacks;

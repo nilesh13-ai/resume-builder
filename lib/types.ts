@@ -28,6 +28,8 @@ export interface ProjectEntry {
   link: string;
 }
 
+import type { SectionConfig } from "./sections";
+
 export interface ResumeData {
   fullName: string;
   jobTitle: string;
@@ -42,6 +44,8 @@ export interface ResumeData {
   projects: ProjectEntry[];
   skills: string[];
   languages: string[];
+  /** Section order and visibility. Always complete; see lib/sections.ts. */
+  sections: SectionConfig[];
 }
 
 /** A saved resume document. */
@@ -50,6 +54,8 @@ export interface Resume {
   title: string;
   templateId: TemplateId;
   data: ResumeData;
+  /** Viewable by anyone at /r/[id]. Only meaningful for cloud resumes. */
+  isPublic: boolean;
   createdAt: string;
   updatedAt: string;
 }
