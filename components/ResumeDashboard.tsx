@@ -145,9 +145,21 @@ function ResumeCard({ resume }: { resume: Resume }) {
 
   return (
     <li data-resume-id={resume.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <Link href={`/editor/${resume.id}`} className="block bg-zinc-100 p-3 transition hover:bg-zinc-200/70" aria-label={`Open ${title}`}>
+      <div
+        role="link"
+        tabIndex={0}
+        aria-label={`Open ${title}`}
+        onClick={() => router.push(`/editor/${resume.id}`)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            router.push(`/editor/${resume.id}`);
+          }
+        }}
+        className="block cursor-pointer bg-zinc-100 p-3 transition hover:bg-zinc-200/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+      >
         <ResumeSheet data={resume.data} templateId={resume.templateId} fixedAspect />
-      </Link>
+      </div>
       <div className="flex flex-1 flex-col p-4">
         {mode === "rename" ? (
           <form

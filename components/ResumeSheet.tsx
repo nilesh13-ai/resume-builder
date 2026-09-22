@@ -49,7 +49,7 @@ export function ResumeSheet({
   return (
     <div
       ref={containerRef}
-      className={`w-full min-w-0 contain-inline-size ${fixedAspect ? "overflow-hidden" : ""} ${className}`}
+      className={`w-full min-w-0 contain-inline-size ${fixedAspect ? "pointer-events-none select-none overflow-hidden" : ""} ${className}`}
       style={{ height }}
     >
       <div
