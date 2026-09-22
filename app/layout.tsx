@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SiteHeader } from "@/components/SiteHeader";
+import { ToastProvider } from "@/components/Toaster";
 import { AuthProvider } from "@/lib/auth/context";
+import { SITE_URL } from "@/lib/site";
 import { ResumeStoreProvider } from "@/lib/store/context";
 import "./globals.css";
 
@@ -16,6 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Resume Builder",
     template: "%s · Resume Builder",
@@ -27,12 +30,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-zinc-50 text-zinc-900">
-        <AuthProvider>
-          <ResumeStoreProvider>
-            <SiteHeader />
-            <div className="flex flex-1 flex-col">{children}</div>
-          </ResumeStoreProvider>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <ResumeStoreProvider>
+              <SiteHeader />
+              <div className="flex flex-1 flex-col">{children}</div>
+            </ResumeStoreProvider>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

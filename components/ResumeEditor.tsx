@@ -6,6 +6,7 @@ import { ResumeForm } from "@/components/ResumeForm";
 import { ResumeSheet } from "@/components/ResumeSheet";
 import { ResumeTemplate } from "@/components/ResumeTemplate";
 import { TemplateSwitcher } from "@/components/TemplateSwitcher";
+import { useToast } from "@/components/Toaster";
 import { resumeFileName } from "@/lib/format";
 import { useResumeStore } from "@/lib/store/context";
 import type { Resume, ResumeData, TemplateId } from "@/lib/types";
@@ -23,6 +24,7 @@ interface Draft {
 
 export function ResumeEditor({ resume }: { resume: Resume }) {
   const store = useResumeStore();
+  const toast = useToast();
   const [draft, setDraft] = useState<Draft>({ title: resume.title, templateId: resume.templateId, data: resume.data });
   const [tab, setTab] = useState<Tab>("edit");
   const [saved, setSaved] = useState<{ draft: Draft; ok: boolean; message?: string } | null>(null);
@@ -38,10 +40,14 @@ export function ResumeEditor({ resume }: { resume: Resume }) {
       store
         .update(resume.id, draft)
         .then(() => setSaved({ draft, ok: true }))
-        .catch((e: unknown) => setSaved({ draft, ok: false, message: e instanceof Error ? e.message : "Save failed" }));
+        .catch((e: unknown) => {
+          const message = e instanceof Error ? e.message : "Save failed";
+          setSaved({ draft, ok: false, message });
+          toast({ variant: "error", title: "Could not save your changes", description: message });
+        });
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [draft, resume.id, store]);
+  }, [draft, resume.id, store, toast]);
 
   const saveState: SaveState = (() => {
     if (saved) {

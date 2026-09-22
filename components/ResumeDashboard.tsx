@@ -3,28 +3,28 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ImportLocalPrompt } from "@/components/ImportLocalPrompt";
 import { ResumeSheet } from "@/components/ResumeSheet";
+import { useToast } from "@/components/Toaster";
 import { getTemplate } from "@/components/templates";
 import { formatRelativeTime } from "@/lib/format";
-import { ImportLocalPrompt } from "@/components/ImportLocalPrompt";
 import { errorMessage, useResumeList, useResumeStore } from "@/lib/store/context";
 import type { Resume } from "@/lib/types";
 
 export function ResumeDashboard() {
   const store = useResumeStore();
   const router = useRouter();
+  const toast = useToast();
   const { value: resumes, loading, error, refresh } = useResumeList();
   const [creating, setCreating] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   async function createNew() {
     setCreating(true);
-    setActionError(null);
     try {
       const resume = await store.create();
       router.push(`/editor/${resume.id}`);
     } catch (e) {
-      setActionError(errorMessage(e));
+      toast({ variant: "error", title: "Could not create a resume", description: errorMessage(e) });
       setCreating(false);
     }
   }
@@ -50,19 +50,22 @@ export function ResumeDashboard() {
 
       <ImportLocalPrompt onImported={refresh} />
 
-      {(error || actionError) && (
-        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error ?? actionError}
-        </p>
+      {error && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>Could not load your resumes: {error}</span>
+          <button type="button" onClick={refresh} className="rounded bg-white px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-100">
+            Retry
+          </button>
+        </div>
       )}
 
       {loading ? (
-        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy>
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy>
           {[0, 1, 2].map((i) => (
             <li key={i} className="h-80 animate-pulse rounded-xl bg-zinc-200" />
           ))}
         </ul>
-      ) : resumes.length === 0 ? (
+      ) : resumes.length === 0 && !error ? (
         <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
           <h2 className="text-lg font-semibold text-zinc-900">No resumes yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
@@ -80,7 +83,7 @@ export function ResumeDashboard() {
       ) : (
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {resumes.map((resume) => (
-            <ResumeCard key={resume.id} resume={resume} onError={setActionError} />
+            <ResumeCard key={resume.id} resume={resume} />
           ))}
         </ul>
       )}
@@ -88,41 +91,61 @@ export function ResumeDashboard() {
   );
 }
 
-function ResumeCard({ resume, onError }: { resume: Resume; onError: (message: string | null) => void }) {
+function ResumeCard({ resume }: { resume: Resume }) {
   const store = useResumeStore();
   const router = useRouter();
+  const toast = useToast();
   const [mode, setMode] = useState<"view" | "rename" | "confirm-delete">("view");
   const [title, setTitle] = useState(resume.title);
   const [busy, setBusy] = useState(false);
+  // Optimistic delete: the card disappears immediately and comes back on failure.
+  const [removed, setRemoved] = useState(false);
 
-  const run = async (action: () => Promise<unknown>) => {
-    setBusy(true);
-    onError(null);
+  if (removed) return null;
+
+  const rename = async () => {
+    const next = title.trim();
+    setMode("view");
+    if (!next || next === resume.title) {
+      setTitle(resume.title);
+      return;
+    }
+    // Optimistic: the input already shows the new title.
     try {
-      await action();
-      setMode("view");
+      await store.update(resume.id, { title: next });
     } catch (e) {
-      onError(errorMessage(e));
-    } finally {
-      setBusy(false);
+      setTitle(resume.title);
+      toast({ variant: "error", title: "Could not rename", description: errorMessage(e) });
     }
   };
 
-  const rename = () => {
-    const next = title.trim();
-    if (!next || next === resume.title) {
-      setTitle(resume.title);
+  const remove = async () => {
+    setRemoved(true);
+    try {
+      await store.remove(resume.id);
+    } catch (e) {
+      setRemoved(false);
       setMode("view");
-      return;
+      toast({ variant: "error", title: "Could not delete", description: errorMessage(e) });
     }
-    run(() => store.update(resume.id, { title: next }));
+  };
+
+  const duplicate = async () => {
+    setBusy(true);
+    try {
+      const copy = await store.duplicate(resume.id);
+      router.push(`/editor/${copy.id}`);
+    } catch (e) {
+      setBusy(false);
+      toast({ variant: "error", title: "Could not duplicate", description: errorMessage(e) });
+    }
   };
 
   const linkButton = "rounded px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50";
 
   return (
     <li data-resume-id={resume.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <Link href={`/editor/${resume.id}`} className="block bg-zinc-100 p-3 transition hover:bg-zinc-200/70" aria-label={`Open ${resume.title}`}>
+      <Link href={`/editor/${resume.id}`} className="block bg-zinc-100 p-3 transition hover:bg-zinc-200/70" aria-label={`Open ${title}`}>
         <ResumeSheet data={resume.data} templateId={resume.templateId} fixedAspect />
       </Link>
       <div className="flex flex-1 flex-col p-4">
@@ -137,17 +160,21 @@ function ResumeCard({ resume, onError }: { resume: Resume; onError: (message: st
               autoFocus
               aria-label="Resume title"
               value={title}
-              disabled={busy}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={rename}
-              onKeyDown={(e) => e.key === "Escape" && (setTitle(resume.title), setMode("view"))}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setTitle(resume.title);
+                  setMode("view");
+                }
+              }}
               className="w-full rounded-md border border-sky-500 px-2 py-1 text-base font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
             />
           </form>
         ) : (
           <h2 className="truncate text-base font-semibold text-zinc-900">
             <Link href={`/editor/${resume.id}`} className="hover:underline">
-              {resume.title}
+              {title}
             </Link>
           </h2>
         )}
@@ -158,10 +185,10 @@ function ResumeCard({ resume, onError }: { resume: Resume; onError: (message: st
         {mode === "confirm-delete" ? (
           <div role="alertdialog" aria-label="Confirm delete" className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-sm">
             <span className="text-red-800">Delete this resume?</span>
-            <button type="button" autoFocus disabled={busy} onClick={() => run(() => store.remove(resume.id))} className="rounded bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60">
+            <button type="button" autoFocus onClick={remove} className="rounded bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-700">
               Delete
             </button>
-            <button type="button" disabled={busy} onClick={() => setMode("view")} className="rounded px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-white">
+            <button type="button" onClick={() => setMode("view")} className="rounded px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-white">
               Cancel
             </button>
           </div>
@@ -173,13 +200,8 @@ function ResumeCard({ resume, onError }: { resume: Resume; onError: (message: st
             <button type="button" disabled={busy} onClick={() => setMode("rename")} className={linkButton}>
               Rename
             </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(async () => router.push(`/editor/${(await store.duplicate(resume.id)).id}`))}
-              className={linkButton}
-            >
-              Duplicate
+            <button type="button" disabled={busy} onClick={duplicate} className={linkButton}>
+              {busy ? "Duplicating…" : "Duplicate"}
             </button>
             <button type="button" disabled={busy} onClick={() => setMode("confirm-delete")} className={`${linkButton} text-red-600 hover:bg-red-50 hover:text-red-700`}>
               Delete
