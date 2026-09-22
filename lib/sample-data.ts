@@ -7,6 +7,7 @@ export const sampleResume: ResumeData = {
   phone: "+1 (415) 555-0142",
   location: "San Francisco, CA",
   linkedin: "https://www.linkedin.com/in/mayapatel",
+  website: "https://mayapatel.dev",
   summary:
     "Full-stack engineer with 8 years of experience building and scaling web products used by millions. Led the migration of a monolithic checkout system to event-driven services, cutting p95 latency by 60%. Comfortable owning problems end to end, from product discussions to production on-call.",
   experience: [
@@ -64,6 +65,43 @@ export const sampleResume: ResumeData = {
       year: "2022",
     },
   ],
-  skills:
-    "TypeScript, React, Next.js, Node.js, Go, PostgreSQL, Kafka, AWS, Docker, Kubernetes, GraphQL, CI/CD, System Design",
+  projects: [
+    {
+      id: "proj-1",
+      name: "Queuewise",
+      description:
+        "Open-source job queue for Node.js with priority scheduling and exactly-once delivery; 2.1k GitHub stars.",
+      link: "https://github.com/mayapatel/queuewise",
+    },
+    {
+      id: "proj-2",
+      name: "Latency Lens",
+      description:
+        "Chrome extension that visualises Web Vitals per route during development, used by 6 teams internally.",
+      link: "",
+    },
+  ],
+  skills: [
+    "TypeScript", "React", "Next.js", "Node.js", "Go", "PostgreSQL", "Kafka",
+    "AWS", "Docker", "Kubernetes", "GraphQL", "CI/CD", "System Design",
+  ],
+  languages: ["English (Native)", "Hindi (Fluent)", "Spanish (Conversational)"],
 };
+
+export function emptyResume(): ResumeData {
+  return {
+    fullName: "",
+    jobTitle: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedin: "",
+    website: "",
+    summary: "",
+    experience: [],
+    education: [],
+    projects: [],
+    skills: [],
+    languages: [],
+  };
+}

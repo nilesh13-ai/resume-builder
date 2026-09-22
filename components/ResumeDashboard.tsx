@@ -1,0 +1,187 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ResumeSheet } from "@/components/ResumeSheet";
+import { getTemplate } from "@/components/templates";
+import { formatRelativeTime } from "@/lib/format";
+import { errorMessage, useResumeList, useResumeStore } from "@/lib/store/context";
+import type { Resume } from "@/lib/types";
+
+export function ResumeDashboard() {
+  const store = useResumeStore();
+  const router = useRouter();
+  const { value: resumes, loading, error } = useResumeList();
+  const [creating, setCreating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function createNew() {
+    setCreating(true);
+    setActionError(null);
+    try {
+      const resume = await store.create();
+      router.push(`/editor/${resume.id}`);
+    } catch (e) {
+      setActionError(errorMessage(e));
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-zinc-900">My resumes</h1>
+          <p className="mt-1 text-sm text-zinc-600">Saved in this browser. Everything auto-saves as you type.</p>
+        </div>
+        <button
+          type="button"
+          onClick={createNew}
+          disabled={creating}
+          className="rounded-md bg-sky-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-60"
+        >
+          {creating ? "Creating…" : "+ New resume"}
+        </button>
+      </div>
+
+      {(error || actionError) && (
+        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error ?? actionError}
+        </p>
+      )}
+
+      {loading ? (
+        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy>
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="h-80 animate-pulse rounded-xl bg-zinc-200" />
+          ))}
+        </ul>
+      ) : resumes.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
+          <h2 className="text-lg font-semibold text-zinc-900">No resumes yet</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
+            Start from a template and your resume will show up here, ready to edit or download any time.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link href="/#templates" className="rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">
+              Browse templates
+            </Link>
+            <button type="button" onClick={createNew} className="rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
+              Start with sample data
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {resumes.map((resume) => (
+            <ResumeCard key={resume.id} resume={resume} onError={setActionError} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ResumeCard({ resume, onError }: { resume: Resume; onError: (message: string | null) => void }) {
+  const store = useResumeStore();
+  const router = useRouter();
+  const [mode, setMode] = useState<"view" | "rename" | "confirm-delete">("view");
+  const [title, setTitle] = useState(resume.title);
+  const [busy, setBusy] = useState(false);
+
+  const run = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    onError(null);
+    try {
+      await action();
+      setMode("view");
+    } catch (e) {
+      onError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rename = () => {
+    const next = title.trim();
+    if (!next || next === resume.title) {
+      setTitle(resume.title);
+      setMode("view");
+      return;
+    }
+    run(() => store.update(resume.id, { title: next }));
+  };
+
+  const linkButton = "rounded px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50";
+
+  return (
+    <li data-resume-id={resume.id} className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <Link href={`/editor/${resume.id}`} className="block bg-zinc-100 p-3 transition hover:bg-zinc-200/70" aria-label={`Open ${resume.title}`}>
+        <ResumeSheet data={resume.data} templateId={resume.templateId} fixedAspect />
+      </Link>
+      <div className="flex flex-1 flex-col p-4">
+        {mode === "rename" ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              rename();
+            }}
+          >
+            <input
+              autoFocus
+              aria-label="Resume title"
+              value={title}
+              disabled={busy}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={rename}
+              onKeyDown={(e) => e.key === "Escape" && (setTitle(resume.title), setMode("view"))}
+              className="w-full rounded-md border border-sky-500 px-2 py-1 text-base font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            />
+          </form>
+        ) : (
+          <h2 className="truncate text-base font-semibold text-zinc-900">
+            <Link href={`/editor/${resume.id}`} className="hover:underline">
+              {resume.title}
+            </Link>
+          </h2>
+        )}
+        <p className="mt-1 text-xs text-zinc-500">
+          {getTemplate(resume.templateId).name} &middot; edited {formatRelativeTime(resume.updatedAt)}
+        </p>
+
+        {mode === "confirm-delete" ? (
+          <div role="alertdialog" aria-label="Confirm delete" className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-sm">
+            <span className="text-red-800">Delete this resume?</span>
+            <button type="button" autoFocus disabled={busy} onClick={() => run(() => store.remove(resume.id))} className="rounded bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60">
+              Delete
+            </button>
+            <button type="button" disabled={busy} onClick={() => setMode("view")} className="rounded px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-white">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-1">
+            <Link href={`/editor/${resume.id}`} className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800">
+              Open
+            </Link>
+            <button type="button" disabled={busy} onClick={() => setMode("rename")} className={linkButton}>
+              Rename
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(async () => router.push(`/editor/${(await store.duplicate(resume.id)).id}`))}
+              className={linkButton}
+            >
+              Duplicate
+            </button>
+            <button type="button" disabled={busy} onClick={() => setMode("confirm-delete")} className={`${linkButton} text-red-600 hover:bg-red-50 hover:text-red-700`}>
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}

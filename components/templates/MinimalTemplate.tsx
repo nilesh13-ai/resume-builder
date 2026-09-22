@@ -1,19 +1,7 @@
 import type { ResumeData } from "@/lib/types";
-import {
-  cleanBullets,
-  formatDateRange,
-  linkedinHref,
-  linkedinLabel,
-  splitSkills,
-} from "@/lib/format";
+import { cleanBullets, contactItems, formatDateRange, urlHref, urlLabel } from "@/lib/format";
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-4 border-t border-zinc-200 pt-3">
       <h2 className="mb-2.5 text-[8.5pt] font-medium uppercase tracking-[0.25em] text-zinc-400 break-after-avoid">
@@ -25,7 +13,7 @@ function Section({
 }
 
 /** Two-column row: muted meta on the left, content on the right. */
-function Row({ meta, children }: { meta: string; children: React.ReactNode }) {
+function Row({ meta, children }: { meta: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[32mm_minmax(0,1fr)] gap-x-4 break-inside-avoid">
       <span className="pt-px text-[9pt] text-zinc-400">{meta}</span>
@@ -35,13 +23,7 @@ function Row({ meta, children }: { meta: string; children: React.ReactNode }) {
 }
 
 export function MinimalTemplate({ data }: { data: ResumeData }) {
-  const skills = splitSkills(data.skills);
-  const contact = [
-    data.email,
-    data.phone,
-    data.location,
-    data.linkedin ? linkedinLabel(data.linkedin) : "",
-  ].filter(Boolean);
+  const contact = contactItems(data);
 
   return (
     <div className="font-sans text-[9.5pt] leading-[1.5] text-zinc-800">
@@ -49,20 +31,18 @@ export function MinimalTemplate({ data }: { data: ResumeData }) {
         <h1 className="text-[21pt] font-light leading-tight tracking-tight text-zinc-900">
           {data.fullName || "Your Name"}
         </h1>
-        {data.jobTitle && (
-          <p className="mt-1 text-[11pt] text-zinc-500">{data.jobTitle}</p>
-        )}
+        {data.jobTitle && <p className="mt-1 text-[11pt] text-zinc-500">{data.jobTitle}</p>}
         {contact.length > 0 && (
           <p className="mt-2.5 text-[9pt] text-zinc-500">
             {contact.map((item, i) => (
               <span key={i}>
                 {i > 0 && <span className="mx-2 text-zinc-300">&middot;</span>}
-                {data.linkedin && item === linkedinLabel(data.linkedin) ? (
-                  <a href={linkedinHref(data.linkedin)} className="text-zinc-700">
-                    {item}
+                {item.href ? (
+                  <a href={item.href} className="text-zinc-700">
+                    {item.label}
                   </a>
                 ) : (
-                  item
+                  item.label
                 )}
               </span>
             ))}
@@ -104,6 +84,30 @@ export function MinimalTemplate({ data }: { data: ResumeData }) {
         </Section>
       )}
 
+      {data.projects.length > 0 && (
+        <Section title="Projects">
+          <div className="space-y-3">
+            {data.projects.map((p) => (
+              <Row
+                key={p.id}
+                meta={
+                  p.link ? (
+                    <a href={urlHref(p.link)} className="break-all text-zinc-500">
+                      {urlLabel(p.link)}
+                    </a>
+                  ) : (
+                    ""
+                  )
+                }
+              >
+                <p className="font-semibold text-zinc-900">{p.name || "Project"}</p>
+                {p.description && <p className="text-zinc-700">{p.description}</p>}
+              </Row>
+            ))}
+          </div>
+        </Section>
+      )}
+
       {data.education.length > 0 && (
         <Section title="Education">
           <div className="space-y-3">
@@ -117,9 +121,15 @@ export function MinimalTemplate({ data }: { data: ResumeData }) {
         </Section>
       )}
 
-      {skills.length > 0 && (
+      {data.skills.length > 0 && (
         <Section title="Skills">
-          <p className="max-w-[150mm] text-zinc-700 break-inside-avoid">{skills.join(", ")}</p>
+          <p className="max-w-[150mm] text-zinc-700 break-inside-avoid">{data.skills.join(", ")}</p>
+        </Section>
+      )}
+
+      {data.languages.length > 0 && (
+        <Section title="Languages">
+          <p className="max-w-[150mm] text-zinc-700 break-inside-avoid">{data.languages.join(", ")}</p>
         </Section>
       )}
     </div>

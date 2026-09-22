@@ -1,11 +1,5 @@
 import type { ResumeData } from "@/lib/types";
-import {
-  cleanBullets,
-  formatDateRange,
-  linkedinHref,
-  linkedinLabel,
-  splitSkills,
-} from "@/lib/format";
+import { cleanBullets, contactItems, formatDateRange, urlHref, urlLabel } from "@/lib/format";
 
 function SidebarHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -25,16 +19,7 @@ function MainHeading({ children }: { children: React.ReactNode }) {
 }
 
 export function ModernTemplate({ data }: { data: ResumeData }) {
-  const skills = splitSkills(data.skills);
-  const contact = [
-    { label: data.email, href: data.email ? `mailto:${data.email}` : "" },
-    { label: data.phone, href: "" },
-    { label: data.location, href: "" },
-    {
-      label: data.linkedin ? linkedinLabel(data.linkedin) : "",
-      href: data.linkedin ? linkedinHref(data.linkedin) : "",
-    },
-  ].filter((c) => c.label);
+  const contact = contactItems(data);
 
   return (
     <div className="grid grid-cols-[58mm_minmax(0,1fr)] gap-6 font-sans text-[10pt] leading-[1.45] text-zinc-800">
@@ -58,16 +43,39 @@ export function ModernTemplate({ data }: { data: ResumeData }) {
           </section>
         )}
 
-        {skills.length > 0 && (
+        {data.skills.length > 0 && (
           <section className="mt-6">
             <SidebarHeading>Skills</SidebarHeading>
             <ul className="flex flex-wrap gap-1.5">
-              {skills.map((s) => (
-                <li
-                  key={s}
-                  className="rounded-sm bg-white/15 px-2 py-0.5 text-[9pt] leading-tight"
-                >
+              {data.skills.map((s) => (
+                <li key={s} className="rounded-sm bg-white/15 px-2 py-0.5 text-[9pt] leading-tight">
                   {s}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {data.languages.length > 0 && (
+          <section className="mt-6">
+            <SidebarHeading>Languages</SidebarHeading>
+            <ul className="space-y-1 text-[9.5pt]">
+              {data.languages.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {data.education.length > 0 && (
+          <section className="mt-6">
+            <SidebarHeading>Education</SidebarHeading>
+            <ul className="space-y-2.5 text-[9.5pt]">
+              {data.education.map((e) => (
+                <li key={e.id} className="break-inside-avoid">
+                  <p className="font-semibold">{e.degree || "Degree"}</p>
+                  {e.institution && <p className="text-sky-100">{e.institution}</p>}
+                  {e.year && <p className="text-sky-200">{e.year}</p>}
                 </li>
               ))}
             </ul>
@@ -81,9 +89,7 @@ export function ModernTemplate({ data }: { data: ResumeData }) {
             {data.fullName || "Your Name"}
           </h1>
           {data.jobTitle && (
-            <p className="mt-1 text-[12pt] font-medium text-zinc-600">
-              {data.jobTitle}
-            </p>
+            <p className="mt-1 text-[12pt] font-medium text-zinc-600">{data.jobTitle}</p>
           )}
         </header>
 
@@ -103,17 +109,11 @@ export function ModernTemplate({ data }: { data: ResumeData }) {
                 return (
                   <article key={entry.id} className="break-inside-avoid">
                     <div className="flex items-baseline justify-between gap-4">
-                      <h3 className="font-semibold text-zinc-900">
-                        {entry.role || "Role"}
-                      </h3>
-                      <span className="shrink-0 text-[9pt] text-zinc-500">
-                        {formatDateRange(entry)}
-                      </span>
+                      <h3 className="font-semibold text-zinc-900">{entry.role || "Role"}</h3>
+                      <span className="shrink-0 text-[9pt] text-zinc-500">{formatDateRange(entry)}</span>
                     </div>
                     {entry.company && (
-                      <p className="text-[9.5pt] font-medium text-sky-800">
-                        {entry.company}
-                      </p>
+                      <p className="text-[9.5pt] font-medium text-sky-800">{entry.company}</p>
                     )}
                     {bullets.length > 0 && (
                       <ul className="mt-1.5 list-disc space-y-1 pl-4 marker:text-sky-700">
@@ -129,27 +129,22 @@ export function ModernTemplate({ data }: { data: ResumeData }) {
           </section>
         )}
 
-        {data.education.length > 0 && (
+        {data.projects.length > 0 && (
           <section className="mt-5">
-            <MainHeading>Education</MainHeading>
-            <div className="space-y-2.5">
-              {data.education.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-baseline justify-between gap-4 break-inside-avoid"
-                >
-                  <div>
-                    <p className="font-semibold text-zinc-900">
-                      {entry.degree || "Degree"}
-                    </p>
-                    {entry.institution && (
-                      <p className="text-[9.5pt] text-zinc-600">{entry.institution}</p>
+            <MainHeading>Projects</MainHeading>
+            <div className="space-y-3">
+              {data.projects.map((p) => (
+                <article key={p.id} className="break-inside-avoid">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <h3 className="font-semibold text-zinc-900">{p.name || "Project"}</h3>
+                    {p.link && (
+                      <a href={urlHref(p.link)} className="shrink-0 text-[9pt] text-sky-700 hover:underline">
+                        {urlLabel(p.link)}
+                      </a>
                     )}
                   </div>
-                  <span className="shrink-0 text-[9pt] text-zinc-500">
-                    {entry.year}
-                  </span>
-                </div>
+                  {p.description && <p className="mt-0.5">{p.description}</p>}
+                </article>
               ))}
             </div>
           </section>

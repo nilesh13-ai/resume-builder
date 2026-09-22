@@ -1,12 +1,12 @@
-export type TemplateId = "classic" | "modern" | "minimal";
+export type TemplateId = "classic" | "modern" | "minimal" | "bold" | "compact";
 
 export interface ExperienceEntry {
   id: string;
   company: string;
   role: string;
-  /** "YYYY-MM" from a month input, or free text. */
+  /** "YYYY-MM" or free text. */
   startDate: string;
-  /** "YYYY-MM" from a month input, or free text. Ignored when `current` is true. */
+  /** "YYYY-MM" or free text. Ignored when `current` is true. */
   endDate: string;
   current: boolean;
   bullets: string[];
@@ -19,6 +19,13 @@ export interface EducationEntry {
   year: string;
 }
 
+export interface ProjectEntry {
+  id: string;
+  name: string;
+  description: string;
+  link: string;
+}
+
 export interface ResumeData {
   fullName: string;
   jobTitle: string;
@@ -26,9 +33,21 @@ export interface ResumeData {
   phone: string;
   location: string;
   linkedin: string;
+  website: string;
   summary: string;
   experience: ExperienceEntry[];
   education: EducationEntry[];
-  /** Comma-separated. */
-  skills: string;
+  projects: ProjectEntry[];
+  skills: string[];
+  languages: string[];
+}
+
+/** A saved resume document. */
+export interface Resume {
+  id: string;
+  title: string;
+  templateId: TemplateId;
+  data: ResumeData;
+  createdAt: string;
+  updatedAt: string;
 }

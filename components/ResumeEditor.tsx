@@ -1,67 +1,57 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ClearAllButton } from "@/components/ClearAllButton";
-import { ResumeDocument } from "@/components/ResumeDocument";
 import { ResumeForm } from "@/components/ResumeForm";
-import { ResumePreview } from "@/components/ResumePreview";
-import { TemplateToggle } from "@/components/TemplateToggle";
+import { ResumeSheet } from "@/components/ResumeSheet";
+import { ResumeTemplate } from "@/components/ResumeTemplate";
+import { TemplateSwitcher } from "@/components/TemplateSwitcher";
 import { resumeFileName } from "@/lib/format";
-import { sampleResume } from "@/lib/sample-data";
-import { clearStoredState, saveStoredState, type StoredState } from "@/lib/storage";
-import type { ResumeData, TemplateId } from "@/lib/types";
+import { useResumeStore } from "@/lib/store/context";
+import type { Resume, ResumeData, TemplateId } from "@/lib/types";
 
 type Tab = "edit" | "preview";
-type SaveState = "idle" | "saving" | "saved" | "error";
+export type SaveState = "idle" | "saving" | "saved" | "error";
 
-const SAVE_DEBOUNCE_MS = 500;
+const SAVE_DEBOUNCE_MS = 600;
 
-interface SavedSnapshot extends StoredState {
-  ok: boolean;
+interface Draft {
+  title: string;
+  templateId: TemplateId;
+  data: ResumeData;
 }
 
-export function ResumeEditor({
-  initial,
-  persist,
-}: {
-  /** State to start from (the stored state on the client, sample data during prerender). */
-  initial: StoredState;
-  /** False during prerender/hydration, when localStorage must not be touched. */
-  persist: boolean;
-}) {
-  const [data, setData] = useState<ResumeData>(initial.data);
-  const [template, setTemplate] = useState<TemplateId>(initial.template);
+export function ResumeEditor({ resume }: { resume: Resume }) {
+  const store = useResumeStore();
+  const [draft, setDraft] = useState<Draft>({ title: resume.title, templateId: resume.templateId, data: resume.data });
   const [tab, setTab] = useState<Tab>("edit");
-  const [saved, setSaved] = useState<SavedSnapshot | null>(null);
+  const [saved, setSaved] = useState<{ draft: Draft; ok: boolean; message?: string } | null>(null);
   const isFirstRun = useRef(true);
 
-  // Auto-save on change, debounced. The mount run is skipped: it only reflects `initial`.
+  // Debounced autosave. The mount run is skipped: it only reflects the loaded resume.
   useEffect(() => {
-    if (!persist) return;
     if (isFirstRun.current) {
       isFirstRun.current = false;
       return;
     }
     const timer = setTimeout(() => {
-      const ok = saveStoredState({ data, template });
-      setSaved({ data, template, ok });
+      store
+        .update(resume.id, draft)
+        .then(() => setSaved({ draft, ok: true }))
+        .catch((e: unknown) => setSaved({ draft, ok: false, message: e instanceof Error ? e.message : "Save failed" }));
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [data, template, persist]);
+  }, [draft, resume.id, store]);
 
   const saveState: SaveState = (() => {
-    if (!persist) return "idle";
     if (saved) {
-      if (saved.data === data && saved.template === template) return saved.ok ? "saved" : "error";
+      if (saved.draft === draft) return saved.ok ? "saved" : "error";
       return "saving";
     }
-    return data === initial.data && template === initial.template ? "idle" : "saving";
+    const untouched =
+      draft.title === resume.title && draft.templateId === resume.templateId && draft.data === resume.data;
+    return untouched ? "idle" : "saving";
   })();
-
-  function handleClearAll() {
-    clearStoredState();
-    setData(sampleResume);
-  }
 
   function handleDownload() {
     // Browsers use document.title as the default file name in the print-to-PDF dialog.
@@ -71,18 +61,30 @@ export function ResumeEditor({
       window.removeEventListener("afterprint", restore);
     };
     window.addEventListener("afterprint", restore);
-    document.title = resumeFileName(data.fullName);
+    document.title = resumeFileName(draft.data.fullName);
     window.print();
   }
 
   return (
     <>
-      <div className="flex min-h-screen flex-col bg-zinc-100 print:hidden">
-        <header className="border-b border-zinc-200 bg-white/90 backdrop-blur md:sticky md:top-0 md:z-10">
+      <div className="flex min-h-[calc(100vh-3.5rem)] flex-col bg-zinc-100 print:hidden">
+        <div className="border-b border-zinc-200 bg-white/90 backdrop-blur md:sticky md:top-0 md:z-10">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
-            <div className="mr-auto flex items-center gap-3">
-              <h1 className="text-lg font-semibold text-zinc-900">Resume Builder</h1>
-              <SaveIndicator state={saveState} />
+            <div className="mr-auto flex min-w-0 basis-full items-center gap-2 sm:basis-auto">
+              <Link
+                href="/resumes"
+                className="shrink-0 rounded-md px-2 py-2 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                aria-label="Back to my resumes"
+              >
+                &larr;
+              </Link>
+              <input
+                aria-label="Resume title"
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-base font-semibold text-zinc-900 hover:border-zinc-300 focus:border-sky-500 focus:outline-none sm:w-64"
+              />
+              <SaveIndicator state={saveState} message={saved?.message} />
             </div>
             <button
               type="button"
@@ -91,12 +93,9 @@ export function ResumeEditor({
             >
               Download PDF
             </button>
-            <div className="flex flex-wrap items-center gap-3">
-              <TemplateToggle value={template} onChange={setTemplate} />
-              <ClearAllButton onConfirm={handleClearAll} />
-            </div>
+            <TemplateSwitcher value={draft.templateId} onChange={(templateId) => setDraft({ ...draft, templateId })} />
           </div>
-        </header>
+        </div>
         {/* Mobile-only Edit/Preview tabs; the only sticky element on small screens. */}
         <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur md:hidden">
           <div className="mx-auto flex max-w-7xl gap-1 px-4 py-2">
@@ -106,9 +105,7 @@ export function ResumeEditor({
                 type="button"
                 onClick={() => setTab(id)}
                 className={`flex-1 rounded-md py-2 text-sm font-medium capitalize ${
-                  tab === id
-                    ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  tab === id ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
                 {id}
@@ -119,25 +116,25 @@ export function ResumeEditor({
 
         <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-[minmax(0,1fr)] gap-6 p-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <div className={tab === "edit" ? "block" : "hidden md:block"}>
-            <ResumeForm data={data} onChange={setData} />
+            <ResumeForm data={draft.data} onChange={(data) => setDraft({ ...draft, data })} />
           </div>
           <div
             className={`${tab === "preview" ? "block" : "hidden md:block"} md:sticky md:top-20 md:max-h-[calc(100vh-6rem)] md:self-start md:overflow-auto`}
           >
-            <ResumePreview data={data} template={template} />
+            <ResumeSheet data={draft.data} templateId={draft.templateId} />
           </div>
         </main>
       </div>
 
       {/* Print-only copy of the resume. The @page rule in globals.css supplies A4 size and margins. */}
       <div className="hidden print:block">
-        <ResumeDocument data={data} template={template} />
+        <ResumeTemplate data={draft.data} templateId={draft.templateId} />
       </div>
     </>
   );
 }
 
-function SaveIndicator({ state }: { state: SaveState }) {
+export function SaveIndicator({ state, message }: { state: SaveState; message?: string }) {
   if (state === "idle") return null;
   const styles: Record<Exclude<SaveState, "idle">, { text: string; className: string }> = {
     saving: { text: "Saving…", className: "text-zinc-400" },
@@ -149,7 +146,8 @@ function SaveIndicator({ state }: { state: SaveState }) {
     <span
       role="status"
       aria-live="polite"
-      className={`flex items-center gap-1 text-xs font-medium ${className}`}
+      title={state === "error" ? message : undefined}
+      className={`flex shrink-0 items-center gap-1 text-xs font-medium ${className}`}
     >
       {state === "saved" && (
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

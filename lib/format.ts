@@ -1,4 +1,4 @@
-import type { ExperienceEntry } from "./types";
+import type { ExperienceEntry, ResumeData } from "./types";
 
 export const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -19,19 +19,12 @@ export function formatDateRange(entry: ExperienceEntry): string {
   return [start, end].filter(Boolean).join(" – ");
 }
 
-export function splitSkills(skills: string): string[] {
-  return skills
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 export function cleanBullets(bullets: string[]): string[] {
   return bullets.map((b) => b.trim()).filter(Boolean);
 }
 
 /** "https://www.linkedin.com/in/jane/" -> "linkedin.com/in/jane" */
-export function linkedinLabel(url: string): string {
+export function urlLabel(url: string): string {
   return url
     .trim()
     .replace(/^https?:\/\//i, "")
@@ -39,9 +32,25 @@ export function linkedinLabel(url: string): string {
     .replace(/\/+$/, "");
 }
 
-export function linkedinHref(url: string): string {
+export function urlHref(url: string): string {
   const trimmed = url.trim();
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+export interface ContactItem {
+  label: string;
+  href?: string;
+}
+
+/** Contact line items in display order, skipping empty fields. */
+export function contactItems(data: ResumeData): ContactItem[] {
+  const items: ContactItem[] = [];
+  if (data.email) items.push({ label: data.email, href: `mailto:${data.email}` });
+  if (data.phone) items.push({ label: data.phone });
+  if (data.location) items.push({ label: data.location });
+  if (data.linkedin) items.push({ label: urlLabel(data.linkedin), href: urlHref(data.linkedin) });
+  if (data.website) items.push({ label: urlLabel(data.website), href: urlHref(data.website) });
+  return items;
 }
 
 /** "Nilesh Naraniwal" -> "Nilesh_Naraniwal_Resume" (the browser appends ".pdf"). */
@@ -55,9 +64,43 @@ export function resumeFileName(fullName: string): string {
   return `${safe || "Resume"}_Resume`;
 }
 
+/** "3 min ago", "2 h ago", "4 days ago", or a short date for older values. */
+export function formatRelativeTime(iso: string, now: number = Date.now()): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const seconds = Math.max(0, Math.round((now - then) / 1000));
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(then).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return Math.random().toString(36).slice(2, 10);
+  // RFC 4122 v4 fallback so ids are always uuid-shaped.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** Immutable move of an array item. */
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) {
+    return items;
+  }
+  const next = items.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
 }
