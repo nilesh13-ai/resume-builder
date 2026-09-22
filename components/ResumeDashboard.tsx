@@ -6,13 +6,14 @@ import { useState } from "react";
 import { ResumeSheet } from "@/components/ResumeSheet";
 import { getTemplate } from "@/components/templates";
 import { formatRelativeTime } from "@/lib/format";
+import { ImportLocalPrompt } from "@/components/ImportLocalPrompt";
 import { errorMessage, useResumeList, useResumeStore } from "@/lib/store/context";
 import type { Resume } from "@/lib/types";
 
 export function ResumeDashboard() {
   const store = useResumeStore();
   const router = useRouter();
-  const { value: resumes, loading, error } = useResumeList();
+  const { value: resumes, loading, error, refresh } = useResumeList();
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -33,7 +34,9 @@ export function ResumeDashboard() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900">My resumes</h1>
-          <p className="mt-1 text-sm text-zinc-600">Saved in this browser. Everything auto-saves as you type.</p>
+          <p className="mt-1 text-sm text-zinc-600">
+            {store.kind === "cloud" ? "Saved to your account." : "Saved in this browser."} Everything auto-saves as you type.
+          </p>
         </div>
         <button
           type="button"
@@ -44,6 +47,8 @@ export function ResumeDashboard() {
           {creating ? "Creating…" : "+ New resume"}
         </button>
       </div>
+
+      <ImportLocalPrompt onImported={refresh} />
 
       {(error || actionError) && (
         <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

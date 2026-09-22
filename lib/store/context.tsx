@@ -1,21 +1,50 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth/context";
+import { getBrowserSupabase } from "@/lib/supabase/client";
 import type { Resume } from "@/lib/types";
+import { createCloudStore } from "./cloud";
 import { createLocalStore } from "./local";
 import type { ResumeStore } from "./types";
 
-const StoreContext = createContext<ResumeStore | null>(null);
+interface StoreContextValue {
+  /** The active store: cloud when logged in, local otherwise. */
+  store: ResumeStore;
+  /** Always the browser-local store, used to offer importing into an account. */
+  localStore: ResumeStore;
+  /** False while the auth session is still being read; hooks report loading until then. */
+  ready: boolean;
+}
+
+const StoreContext = createContext<StoreContextValue | null>(null);
 
 export function ResumeStoreProvider({ children }: { children: React.ReactNode }) {
-  const store = useMemo(() => createLocalStore(), []);
-  return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
+  const { user, loading } = useAuth();
+  const localStore = useMemo(() => createLocalStore(), []);
+  const userId = user?.id ?? null;
+  const store = useMemo(() => {
+    const supabase = getBrowserSupabase();
+    return userId && supabase ? createCloudStore(supabase, userId) : localStore;
+  }, [userId, localStore]);
+
+  return (
+    <StoreContext.Provider value={{ store, localStore, ready: !loading }}>{children}</StoreContext.Provider>
+  );
+}
+
+function useStoreContext(): StoreContextValue {
+  const ctx = useContext(StoreContext);
+  if (!ctx) throw new Error("useResumeStore must be used inside ResumeStoreProvider");
+  return ctx;
 }
 
 export function useResumeStore(): ResumeStore {
-  const store = useContext(StoreContext);
-  if (!store) throw new Error("useResumeStore must be used inside ResumeStoreProvider");
-  return store;
+  return useStoreContext().store;
+}
+
+export function useLocalResumeStore(): ResumeStore {
+  return useStoreContext().localStore;
 }
 
 interface AsyncState<T> {
@@ -26,11 +55,12 @@ interface AsyncState<T> {
 
 /** All resumes, newest first. Refreshes whenever the store reports a change. */
 export function useResumeList(): AsyncState<Resume[]> & { refresh: () => void } {
-  const store = useResumeStore();
+  const { store, ready } = useStoreContext();
   const [state, setState] = useState<AsyncState<Resume[]>>({ value: [], loading: true, error: null });
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     store
       .list()
@@ -41,17 +71,18 @@ export function useResumeList(): AsyncState<Resume[]> & { refresh: () => void } 
       cancelled = true;
       unsubscribe();
     };
-  }, [store, tick]);
+  }, [store, ready, tick]);
 
-  return { ...state, refresh: () => setTick((t) => t + 1) };
+  return { ...state, loading: state.loading || !ready, refresh: () => setTick((t) => t + 1) };
 }
 
 /** One resume by id. `value` is null while loading or when it does not exist. */
 export function useResume(id: string): AsyncState<Resume | null> {
-  const store = useResumeStore();
+  const { store, ready } = useStoreContext();
   const [state, setState] = useState<AsyncState<Resume | null>>({ value: null, loading: true, error: null });
 
   useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     store
       .get(id)
@@ -60,9 +91,9 @@ export function useResume(id: string): AsyncState<Resume | null> {
     return () => {
       cancelled = true;
     };
-  }, [store, id]);
+  }, [store, ready, id]);
 
-  return state;
+  return { ...state, loading: state.loading || !ready };
 }
 
 export function errorMessage(e: unknown): string {
